@@ -26,12 +26,22 @@ class Columns(BaseModel):
 
 
 class SourceConfig(BaseModel):
-    type: Literal["excel", "csv"] = "excel"
-    path: Path
-    sheet: str | None = None  # Excel only; first sheet when empty
+    type: Literal["excel", "csv", "gsheet"] = "excel"
+    path: Path | None = None  # excel / csv
+    spreadsheet: str | None = None  # gsheet: the sheet's URL or ID
+    credentials: Path | None = None  # gsheet: service-account JSON; default GOOGLE_APPLICATION_CREDENTIALS
+    sheet: str | None = None  # the tab; the first one when empty
     header_row: int = 1
     columns: Columns = Field(default_factory=Columns)
     dayfirst: bool = True  # 03/04 = 3 April; set false for US-style sheets
+
+    @model_validator(mode="after")
+    def _where(self) -> SourceConfig:
+        if self.type == "gsheet" and not self.spreadsheet:
+            raise ValueError("a gsheet source needs `spreadsheet`: the sheet's URL or ID")
+        if self.type != "gsheet" and self.path is None:
+            raise ValueError(f"a {self.type} source needs `path`")
+        return self
 
 
 class ProtectedRule(BaseModel):
@@ -213,10 +223,13 @@ def load_config(path: str | Path) -> Config:
     path = Path(path)
     data = _expand_env(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
     cfg = Config.model_validate(data)
+    src = cfg.source
     # Relative paths are relative to the config file, so `-c examples/config.yaml` just works.
     base = path.resolve().parent
-    if not cfg.source.path.is_absolute():
-        cfg.source.path = base / cfg.source.path
+    if src.path is not None and not src.path.is_absolute():
+        src.path = base / src.path
+    if src.credentials is not None and not src.credentials.is_absolute():
+        src.credentials = base / src.credentials
     if not cfg.backups.is_absolute():
         cfg.backups = base / cfg.backups
     if not cfg.log.is_absolute():

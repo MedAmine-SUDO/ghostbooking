@@ -53,11 +53,14 @@ class Engine:
         self.cfg = cfg
         self.state = State(cfg.state)
         self.notifier = build_notifier(cfg, console, http, smtp, self.state)
+        self._source: Source | None = None
         self._lock = threading.Lock()  # one pass at a time: scheduler and link clicks share the file
         self._working_days = parse_recurrence(cfg.rules.working_days) or frozenset(range(5))
 
     def source(self) -> Source:
-        return open_source(self.cfg.source, self.cfg.backups, self.cfg.keep_backups)
+        if self._source is None:  # kept open: a Google Sheet would otherwise log in every pass
+            self._source = open_source(self.cfg.source, self.cfg.backups, self.cfg.keep_backups)
+        return self._source
 
     def reset_due(self, now: datetime) -> bool:
         return (now.weekday() in self._working_days and now.time() >= self.cfg.rules.reset_at
@@ -79,8 +82,8 @@ class Engine:
         plan.removals += self._answers(sheet, plan, now)
 
         reminders = self._reminders(sheet, plan, now)
-        p = Pass(now, is_reset, source.path.name, plan)
-        p.messages = plan_messages(plan, cfg, source.path.name, summary=is_reset) + reminders
+        p = Pass(now, is_reset, source.name, plan)
+        p.messages = plan_messages(plan, cfg, source.name, summary=is_reset) + reminders
         if dry_run:
             p.planned = self.notifier.plan(p.messages)
             return p

@@ -3,10 +3,10 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from .base import Source
+from .base import FileSource
 
 
-class CsvSource(Source):
+class CsvSource(FileSource):
     def _read_all(self) -> list[list[str]]:
         with self.path.open(newline="", encoding="utf-8-sig") as f:
             sample = f.read(4096)

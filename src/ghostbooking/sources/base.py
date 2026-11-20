@@ -15,12 +15,25 @@ class SourceBusy(RuntimeError):
 
 
 class Source(ABC):
+    """Reads booking rows from somewhere and removes rows safely. Parsing is shared."""
+
     def __init__(self, cfg: SourceConfig, backups_dir: Path, keep_backups: int = 30):
         self.cfg = cfg
-        self.path = Path(cfg.path)
         self.backups_dir = Path(backups_dir)
         self.keep_backups = keep_backups
-        self._read_mtime: float | None = None
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """What people call it in messages: the file name or the sheet's title."""
+
+    def is_open_elsewhere(self) -> bool:
+        return False
+
+    @abstractmethod
+    def remove_rows(self, rows: set[int]) -> Path | None:
+        """Remove the given sheet rows safely. Returns the backup path, or None if nothing to do.
+        Raises SourceBusy when it isn't safe right now."""
 
     # --- reading -------------------------------------------------------------------------
     @abstractmethod
@@ -28,9 +41,6 @@ class Source(ABC):
         """Return (header values, [(sheet row number, values)])."""
 
     def read(self) -> Sheet:
-        if not self.path.exists():
-            raise FileNotFoundError(f"booking file not found: {self.path}")
-        self._read_mtime = self.path.stat().st_mtime
         header, rows = self._rows()
         index = self._column_index(header)
         sheet = Sheet()
@@ -90,6 +100,32 @@ class Source(ABC):
             booked_at=booked_at,
         )
 
+    def _prune_backups(self, pattern: str) -> None:
+        olds = sorted(self.backups_dir.glob(pattern))
+        for old in olds[: max(0, len(olds) - self.keep_backups)]:
+            old.unlink()
+
+
+class FileSource(Source):
+    """An Excel or CSV file on a shared drive. Never writes while someone has it open."""
+
+    def __init__(self, cfg: SourceConfig, backups_dir: Path, keep_backups: int = 30):
+        super().__init__(cfg, backups_dir, keep_backups)
+        if cfg.path is None:
+            raise ValueError("source.path is required for excel and csv sources")
+        self.path = Path(cfg.path)
+        self._read_mtime: float | None = None
+
+    @property
+    def name(self) -> str:
+        return self.path.name
+
+    def read(self) -> Sheet:
+        if not self.path.exists():
+            raise FileNotFoundError(f"booking file not found: {self.path}")
+        self._read_mtime = self.path.stat().st_mtime
+        return super().read()
+
     # --- writing -------------------------------------------------------------------------
     @abstractmethod
     def _write_keeping(self, keep_rows: set[int], tmp: Path) -> None:
@@ -104,7 +140,6 @@ class Source(ABC):
         return self.lock_file().exists() or lo_lock.exists()
 
     def remove_rows(self, rows: set[int]) -> Path | None:
-        """Remove the given sheet rows safely. Returns the backup path, or None if nothing to do."""
         if not rows:
             return None
         if self.is_open_elsewhere():
@@ -130,7 +165,5 @@ class Source(ABC):
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         dest = self.backups_dir / f"{self.path.stem}.{stamp}{self.path.suffix}"
         shutil.copy2(self.path, dest)
-        olds = sorted(self.backups_dir.glob(f"{self.path.stem}.*{self.path.suffix}"))
-        for old in olds[: max(0, len(olds) - self.keep_backups)]:
-            old.unlink()
+        self._prune_backups(f"{self.path.stem}.*{self.path.suffix}")
         return dest

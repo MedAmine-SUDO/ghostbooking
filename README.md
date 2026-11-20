@@ -4,7 +4,7 @@
 
 Every morning, Ghostbooking clears the bookings people forgot to remove, tells people about double bookings with a free alternative, posts a short summary to the team, and reminds people before their meetings with one-click Keep / Release links. It works on Slack, Teams, Discord, email or any webhook. Nobody has to change how they book.
 
-> Work in progress: steps 1–5 of [SPEC.md](SPEC.md) are done. Google Sheets, the weekly summary and Docker come next.
+> Work in progress: steps 1–6 of [SPEC.md](SPEC.md) are done. The weekly summary, Docker and the first release come next.
 
 ## Try it in 30 seconds
 
@@ -15,6 +15,33 @@ uv run ghostbooking tick  -c examples/config.yaml --now "2026-11-23 07:30" --dry
 ```
 
 The example sheet has ghost bookings left over from Friday, a double booking, a recurring standup, a protected board meeting and a row with "tbd" as its end time.
+
+## Excel, CSV or Google Sheets
+
+Point `source` at your sheet and map your column names:
+
+```yaml
+source:
+  type: excel            # excel | csv | gsheet
+  path: /mnt/shared/Room bookings.xlsx
+  sheet: Bookings
+  columns: {room: Salle, date: Jour, start: Début, end: Fin, booked_by: Réservé par}
+```
+
+**Google Sheets** (`pip install 'ghostbooking[google]'`):
+
+1. In Google Cloud, create a project, enable the **Google Sheets API**, and create a **service account** with a JSON key.
+2. Share the booking sheet with the service account's email (`client_email` in the JSON) as an **Editor**.
+3. Configure it:
+   ```yaml
+   source:
+     type: gsheet
+     spreadsheet: https://docs.google.com/spreadsheets/d/…/edit   # the URL or just the ID
+     sheet: Bookings
+     credentials: service-account.json   # or set GOOGLE_APPLICATION_CREDENTIALS
+   ```
+
+People edit a Google Sheet live, so before deleting anything Ghostbooking fetches the rows again. If someone inserted, sorted or edited them in the meantime, it deletes nothing and tries again on the next pass. Each change is backed up as a CSV in `backups/` first.
 
 ## Safe on a shared file
 

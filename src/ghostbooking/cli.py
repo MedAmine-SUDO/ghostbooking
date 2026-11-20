@@ -142,7 +142,7 @@ def cmd_check(args) -> int:
     sheet = source.read()
     now = _now(cfg, args.now)
     plan = plan_reset(sheet, cfg, now)
-    console.print(f"[bold]Ghostbooking {__version__}[/] · {source.path.name} · now {now:%a %d %b %H:%M} ({cfg.timezone})\n")
+    console.print(f"[bold]Ghostbooking {__version__}[/] · {source.name} · now {now:%a %d %b %H:%M} ({cfg.timezone})\n")
     console.print(_bookings_table(sheet, plan))
     _print_plan(plan)
     _print_people(cfg, sheet, build_notifier(cfg, console))
@@ -193,7 +193,7 @@ def cmd_run(args) -> int:
         console.print(f"Keep/Release links: listening on {host}:{port}, public at {cfg.links.base_url}")
     else:
         console.print("[dim]No `links:` in config: reminders go out without Keep/Release links.[/]")
-    console.print(f"Watching {cfg.source.path.name} every {args.every}s. Ctrl+C to stop.\n")
+    console.print(f"Watching {engine.source().name} every {args.every}s. Ctrl+C to stop.\n")
     try:
         while True:
             try:
@@ -231,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     try:
         return args.fn(args)
-    except (FileNotFoundError, ValueError) as e:
+    except (OSError, ValueError) as e:
         console.print(f"[red]Error:[/] {e}")
         return 1
 

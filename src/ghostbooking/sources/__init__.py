@@ -9,6 +9,10 @@ from .excel import ExcelSource
 
 
 def open_source(cfg: SourceConfig, backups_dir, keep_backups: int = 30) -> Source:
+    if cfg.type == "gsheet":
+        from .gsheet import GoogleSheetSource  # needs the optional `google` extra
+
+        return GoogleSheetSource(cfg, backups_dir, keep_backups)
     cls = {"excel": ExcelSource, "csv": CsvSource}[cfg.type]
     return cls(cfg, backups_dir, keep_backups)
 

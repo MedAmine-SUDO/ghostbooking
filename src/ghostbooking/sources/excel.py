@@ -5,10 +5,10 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from .base import Source
+from .base import FileSource
 
 
-class ExcelSource(Source):
+class ExcelSource(FileSource):
     """An .xlsx file on a shared drive or synced folder. Only the booking table's values move;
     formatting, other sheets and column widths stay as they are."""
 
