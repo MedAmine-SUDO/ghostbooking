@@ -19,6 +19,12 @@ def test_missing_file_is_a_clear_error(tmp_path):
     assert main(["check", "-c", str(tmp_path / "config.yaml")]) == 1
 
 
+def test_broken_yaml_is_a_clear_error(tmp_path, capsys):
+    (tmp_path / "config.yaml").write_text("people:\n  Karim: {slack: ${SLACK_ID}}\n", encoding="utf-8")
+    assert main(["check", "-c", str(tmp_path / "config.yaml")]) == 1
+    assert "in quotes" in capsys.readouterr().out
+
+
 def test_dry_run_previews_messages(example, capsys):
     assert main(["tick", "-c", str(example), "--now", "2026-11-23 07:30", "--dry-run"]) == 0
     out = capsys.readouterr().out

@@ -244,7 +244,12 @@ def _expand_env(value: object) -> object:
 
 def load_config(path: str | Path) -> Config:
     path = Path(path)
-    data = _expand_env(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as e:
+        # Common slip: {slack: ${SLACK_ID}} breaks YAML; "${SLACK_ID}" in quotes works.
+        raise ValueError(f"{path} is not valid YAML (put ${{...}} values in quotes): {e}") from None
+    data = _expand_env(raw or {})
     cfg = Config.model_validate(data)
     src = cfg.source
     # Relative paths are relative to the config file, so `-c examples/config.yaml` just works.

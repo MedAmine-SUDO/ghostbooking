@@ -276,7 +276,8 @@ def test_weekly_summary_on_friday_from_the_weeks_log(day):
     assert "This week in room-bookings.xlsx:" in text
     assert text.splitlines()[1:] == [
         "• 2 meetings freed the room as soon as they ended",  # Youssef's 10:00, Karim's 14:30
-        "• 3 ghost bookings from earlier days cleared",  # last Friday's, cleared on Monday
+        # last Friday's 3, cleared on Monday, + Lina's Tuesday 1:1, cleared by this same pass
+        "• 4 ghost bookings from earlier days cleared",
         # Sara released 14:00–16:00 at 14:30 (1.5 h); Ines never tapped Keep: 14:30–15:00 (0.5 h)
         "• 1 released early and 1 no-show: 2 h of room time given back",
         "• 1 double booking caught",
