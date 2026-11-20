@@ -27,3 +27,40 @@ protected:                    # bookings matching a rule are never removed
 
 backups: backups              # a copy of the file before every change
 keep_backups: 30
+
+# Who is who. "Booked by" in the sheet is matched to a name or an alias (case doesn't matter).
+# Anyone not listed here gets their messages in the team channel instead of a DM.
+people:
+  Karim: {slack: U01KARIM, email: karim@example.com, aliases: [KB]}
+  Sara: {slack: U01SARA, email: sara@example.com}
+  Ines: {slack: U01INES}
+  Omar: {email: omar@example.com}
+  Lina: {slack: U01LINA}
+  Youssef: {email: youssef@example.com, aliases: [YB, Youss]}
+
+# Where messages go. "console" prints them, so the example works without any accounts.
+# Secrets come from environment variables: ${SLACK_BOT_TOKEN} is read when the config loads.
+channels:
+  - type: console
+  # - type: slack
+  #   token: ${SLACK_BOT_TOKEN}       # a bot with chat:write; DMs people with a slack ID
+  #   team_channel: "#rooms"          # summaries + people without a slack ID (invite the bot)
+  # - type: slack
+  #   webhook_url: ${SLACK_WEBHOOK_URL}  # no bot? an incoming webhook posts to one channel
+  # - type: email
+  #   host: smtp.example.com
+  #   port: 587
+  #   username: ${SMTP_USER}
+  #   password: ${SMTP_PASSWORD}
+  #   sender: rooms@example.com
+  #   team_email: office@example.com
+  # - type: teams
+  #   webhook_url: ${TEAMS_WEBHOOK_URL}  # Workflows: "post to a channel when a webhook request is received"
+  # - type: discord
+  #   webhook_url: ${DISCORD_WEBHOOK_URL}
+  # - type: webhook                    # n8n, Make, Zapier, a WhatsApp provider...
+  #   url: https://hooks.example.com/ghostbooking
+  #   headers: {Authorization: "Bearer ${HOOK_TOKEN:-}"}
+
+notifications:
+  morning_summary: true             # post what the reset did to the team channel

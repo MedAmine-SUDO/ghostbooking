@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import os
+import re
 from datetime import time
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .parsing import parse_recurrence, parse_time
 
@@ -72,6 +74,78 @@ class Rules(BaseModel):
         return parse_time(v)
 
 
+class Person(BaseModel):
+    """How to reach someone. Extra fields (phone, etc.) are passed through to webhooks."""
+
+    model_config = ConfigDict(extra="allow")
+
+    name: str = ""  # filled from the key in `people:`
+    aliases: list[str] = Field(default_factory=list)  # initials, nicknames, "Sara B."
+    slack: str | None = None  # member ID, e.g. U012AB3CD
+    email: str | None = None
+    discord: str | None = None  # user ID, for <@mentions>
+
+
+class ConsoleChannel(BaseModel):
+    type: Literal["console"]
+
+
+class SlackChannel(BaseModel):
+    """A bot token sends DMs; an incoming webhook can only post to its channel."""
+
+    type: Literal["slack"]
+    token: str | None = None
+    webhook_url: str | None = None
+    team_channel: str | None = None  # "#rooms" or a channel ID; bot token only
+
+    @model_validator(mode="after")
+    def _one_of(self) -> SlackChannel:
+        if not self.token and not self.webhook_url:
+            raise ValueError("slack needs a bot `token` or a `webhook_url`")
+        return self
+
+
+class EmailChannel(BaseModel):
+    type: Literal["email"]
+    host: str
+    port: int = 587
+    username: str | None = None
+    password: str | None = None
+    security: Literal["starttls", "ssl", "none"] = "starttls"
+    sender: str  # From: address
+    team_email: str | None = None  # where team messages go, e.g. office@company.com
+
+
+class TeamsChannel(BaseModel):
+    """A Teams Workflows webhook ("post to a channel when a webhook request is received")."""
+
+    type: Literal["teams"]
+    webhook_url: str
+
+
+class DiscordChannel(BaseModel):
+    type: Literal["discord"]
+    webhook_url: str
+
+
+class WebhookChannel(BaseModel):
+    """JSON POST of every message, for n8n, Make, Zapier or a WhatsApp provider."""
+
+    type: Literal["webhook"]
+    url: str
+    headers: dict[str, str] = Field(default_factory=dict)
+
+
+ChannelConfig = Annotated[
+    ConsoleChannel | SlackChannel | EmailChannel | TeamsChannel | DiscordChannel | WebhookChannel,
+    Field(discriminator="type"),
+]
+
+
+class Notifications(BaseModel):
+    morning_summary: bool = True  # post what the reset did to the team channel
+
+
 class Config(BaseModel):
     timezone: str = "UTC"
     source: SourceConfig
@@ -80,11 +154,42 @@ class Config(BaseModel):
     backups: Path = Path("backups")
     keep_backups: int = 30
     log: Path = Path("ghostbooking.log.jsonl")
+    state: Path = Path("ghostbooking.state.json")  # messages already sent, so nobody is told twice
+    people: dict[str, Person] = Field(default_factory=dict)
+    channels: list[ChannelConfig] = Field(default_factory=lambda: [ConsoleChannel(type="console")])
+    notifications: Notifications = Field(default_factory=Notifications)
+
+    @field_validator("people", mode="before")
+    @classmethod
+    def _names(cls, v: object) -> object:
+        if isinstance(v, dict):
+            return {k: {**(p or {}), "name": k} for k, p in v.items()}
+        return v
+
+
+_ENV = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+
+
+def _expand_env(value: object) -> object:
+    """Replace ${VAR} and ${VAR:-default} so tokens and passwords stay out of config.yaml."""
+    if isinstance(value, dict):
+        return {k: _expand_env(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_expand_env(v) for v in value]
+    if isinstance(value, str):
+        def sub(m: re.Match) -> str:
+            if m.group(1) in os.environ:
+                return os.environ[m.group(1)]
+            if m.group(2) is not None:
+                return m.group(2)
+            raise ValueError(f"config uses ${{{m.group(1)}}} but that environment variable is not set")
+        return _ENV.sub(sub, value)
+    return value
 
 
 def load_config(path: str | Path) -> Config:
     path = Path(path)
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    data = _expand_env(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
     cfg = Config.model_validate(data)
     # Relative paths are relative to the config file, so `-c examples/config.yaml` just works.
     base = path.resolve().parent
@@ -94,4 +199,6 @@ def load_config(path: str | Path) -> Config:
         cfg.backups = base / cfg.backups
     if not cfg.log.is_absolute():
         cfg.log = base / cfg.log
+    if not cfg.state.is_absolute():
+        cfg.state = base / cfg.state
     return cfg

@@ -1,4 +1,7 @@
-"""ghostbooking check | tick [--dry-run] [--now "2026-11-23 07:30"]"""
+"""ghostbooking check | tick [--dry-run] [--now "2026-11-23 07:30"]
+
+Exit codes: 0 ok, 1 config or file error, 2 skipped (file open, try later), 3 some messages failed.
+"""
 
 from __future__ import annotations
 
@@ -8,14 +11,17 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from . import __version__, audit
 from .config import Config, load_config
+from .messages import plan_messages, skipped_message
+from .notify import Message, Notifier, build_notifier
 from .rules import Plan, plan_reset
 from .sources import SourceBusy, open_source
 
-console = Console()
+console = Console(soft_wrap=True)  # long lines stay whole when piped or logged
 
 
 def _now(cfg: Config, override: str | None) -> datetime:
@@ -67,6 +73,55 @@ def _print_plan(plan: Plan) -> None:
             console.print(f"  [magenta]?[/] row {i.row}: {i.message}")
 
 
+def _print_people(sheet, notifier: Notifier) -> None:
+    names = sorted({b.booked_by.strip() for b in sheet.bookings if b.booked_by.strip()}, key=str.casefold)
+    real = [c for c in notifier.channels if not c.mirror]
+    console.print(f"\n[bold]Channels[/]: {', '.join(c.name for c in notifier.channels) or 'none'}")
+    unknown, team_only = [], []
+    for name in names:
+        person = notifier.people.lookup(name)
+        if person is None:
+            unknown.append(name)
+        elif real and not any(c.reaches(person) for c in real):
+            team_only.append(name)
+    if unknown:
+        console.print(f"[yellow]Not in `people:`[/] ({len(unknown)}): {', '.join(unknown)} "
+                      "[dim]· their messages go to the team channel[/]")
+    if team_only:
+        console.print(f"[yellow]No direct channel for[/]: {', '.join(team_only)} "
+                      "[dim]· add a slack ID or email to DM them[/]")
+    if real and not any(c.has_team() for c in real):
+        console.print("[yellow]No team channel set up:[/] summaries and messages for unknown people "
+                      "won't reach anyone.")
+    if not unknown and not team_only:
+        console.print(f"[green]Everyone in the sheet can be reached[/] ({len(names)} people).")
+
+
+def _print_deliveries(notifier: Notifier, messages: list[Message]) -> None:
+    planned = notifier.plan(messages)
+    deliveries = [d for d in planned if not d.channel.mirror] or planned  # console only: show those
+    if not deliveries:
+        console.print("\n[dim]No messages to send.[/]")
+        return
+    console.print(f"\n[bold]Messages it would send ({len(deliveries)})[/]")
+    for d in deliveries:
+        console.print(f"  [bold]✉ {escape(d.describe())}[/] [dim]· {d.message.kind}[/]")
+        for line in d.message.text.splitlines():
+            console.print(f"    {escape(line)}")
+
+
+def _report(outcome) -> int:
+    real = [d for d in outcome.sent if not d.channel.mirror]
+    if real:
+        console.print(f"\n[green]Sent {len(real)} message(s).[/]")
+    for m in outcome.undeliverable:
+        console.print(f"[yellow]Nobody could be reached for a {m.kind} message[/] "
+                      "[dim](set up a team channel)[/]")
+    for d, err in outcome.failed:
+        console.print(f"[red]Failed:[/] {escape(d.describe())}: {escape(err)}")
+    return 3 if outcome.failed else 0
+
+
 def cmd_check(args) -> int:
     cfg = load_config(args.config)
     source = open_source(cfg.source, cfg.backups, cfg.keep_backups)
@@ -76,6 +131,7 @@ def cmd_check(args) -> int:
     console.print(f"[bold]Ghostbooking {__version__}[/] · {source.path.name} · now {now:%a %d %b %H:%M} ({cfg.timezone})\n")
     console.print(_bookings_table(sheet, plan))
     _print_plan(plan)
+    _print_people(sheet, build_notifier(cfg, console))
     if source.is_open_elsewhere():
         console.print("\n[yellow]The file is open in Excel right now; `tick` will wait until it's closed.[/]")
     console.print("\n[green]Config OK.[/] Run [bold]ghostbooking tick --dry-run[/] to preview the morning reset.")
@@ -90,14 +146,18 @@ def cmd_tick(args) -> int:
     plan = plan_reset(sheet, cfg, now)
     console.print(f"[bold]Morning reset[/] · {source.path.name} · {now:%a %d %b %H:%M}")
     _print_plan(plan)
+    notifier = build_notifier(cfg, console)
+    messages = plan_messages(plan, cfg, source.path.name)
     if args.dry_run:
-        console.print("\n[dim]Dry run: nothing was written.[/]")
+        _print_deliveries(notifier, messages)
+        console.print("\n[dim]Dry run: nothing was written or sent.[/]")
         return 0
     try:
         backup = source.remove_rows(plan.rows_to_remove)
     except SourceBusy as e:
         console.print(f"\n[yellow]Skipped: {e}.[/]")
         audit.record(cfg.log, "skipped", reason=str(e))
+        _report(notifier.send([skipped_message(str(e), source.path.name, now)]))
         return 2
     for r in plan.removals:
         audit.record(cfg.log, "removed", reason=r.reason, booking=audit.booking_dict(r.booking))
@@ -106,7 +166,7 @@ def cmd_tick(args) -> int:
                      clashing=audit.booking_dict(c.clashing), suggestion=c.suggestion)
     if backup:
         console.print(f"\n[green]Cleared {len(plan.removals)} ghost booking(s).[/] Backup: {backup}")
-    return 0
+    return _report(notifier.send(messages))
 
 
 def main(argv: list[str] | None = None) -> int:

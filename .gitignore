@@ -10,3 +10,4 @@ wheels/
 .venv
 examples/backups/
 examples/*.log.jsonl
+examples/*.state.json
