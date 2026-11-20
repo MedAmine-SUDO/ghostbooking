@@ -10,6 +10,7 @@ Every morning, Ghostbooking clears the bookings people forgot to remove, tells p
 ## Try it in 30 seconds
 
 ```bash
+git clone https://github.com/MedAmine-SUDO/ghostbooking && cd ghostbooking
 uv sync
 uv run ghostbooking check -c examples/config.yaml --now "2026-11-23 07:30"
 uv run ghostbooking tick  -c examples/config.yaml --now "2026-11-23 07:30" --dry-run
@@ -33,7 +34,7 @@ source:
 
 `path` is where Ghostbooking reads the file; `url` is where your team opens it (SharePoint, OneDrive, a shared drive link). With a `url`, team messages end with an **Open the sheet** link. Google Sheets get that link automatically.
 
-**Google Sheets** (`pip install 'ghostbooking[google]'`):
+**Google Sheets** (`uv sync --extra google`, or `pip install 'ghostbooking[google] @ git+https://github.com/MedAmine-SUDO/ghostbooking'`):
 
 1. In Google Cloud, create a project, enable the **Google Sheets API**, and create a **service account** with a JSON key.
 2. Share the booking sheet with the service account's email (`client_email` in the JSON) as an **Editor**.
