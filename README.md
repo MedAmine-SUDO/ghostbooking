@@ -2,9 +2,10 @@
 
 **For startups that still book meeting rooms in a shared Excel file.**
 
+![Ghostbooking: Friday's forgotten bookings cleared on Monday morning, a reminder with Keep and Release links, and the one-tap release page](docs/demo.gif)
+
 Every morning, Ghostbooking clears the bookings people forgot to remove, tells people about double bookings with a free alternative, posts a short summary to the team, and reminds people before their meetings with one-click Keep / Release links. It works on Slack, Teams, Discord, email or any webhook. Nobody has to change how they book.
 
-> Work in progress: steps 1–6 of [SPEC.md](SPEC.md) are done. The weekly summary, Docker and the first release come next.
 
 ## Try it in 30 seconds
 
@@ -96,3 +97,33 @@ channels:
 Links need `ghostbooking run` reachable by your team (`links.base_url`). Opening a link only shows a confirm page; the button does the work, so Slack previews and email link scanners can't release a room by accident. Links are signed and expire when the meeting ends. Without `links:`, reminders are plain text and bookings still free themselves when they end.
 
 If the sheet is open in Excel, reminders still go out; changes wait until it's closed (exit code 2).
+
+On Fridays at 16:00 (`notifications.weekly_summary`), the team gets the week in a few lines: meetings that freed their room on time, ghost bookings cleared, room time given back by early releases and no-shows, double bookings caught, and the busiest room.
+
+## Running it for a team
+
+**Docker** (scheduler + links):
+
+```bash
+docker build -t ghostbooking .
+docker run -d --restart unless-stopped --user "$(id -u):$(id -g)" -p 8080:8080 \
+  --env-file .env -v ./ghostbooking:/config -v "/path/to/shared folder":/data ghostbooking
+```
+
+`./ghostbooking/config.yaml` points at `/data/Room bookings.xlsx`; state, the audit log and backups are written next to the config, so they survive restarts. See also `compose.yaml`.
+
+**Without a server:** run `ghostbooking tick` every 5 minutes from cron, Windows Task Scheduler or a GitHub Actions schedule, and leave `links:` out.
+
+| Command | What it does |
+|---|---|
+| `ghostbooking check` | Reads the sheet and shows what it sees: bookings, unreadable rows, people it can't reach. Run this first. |
+| `ghostbooking tick [--dry-run] [--reset]` | One pass of whatever is due now. |
+| `ghostbooking run` | A pass every minute, plus the Keep/Release endpoint. |
+
+Exit codes: 0 ok, 1 config or file error, 2 skipped because the file is open, 3 some messages failed.
+
+Everything Ghostbooking removes or sends is written to `ghostbooking.log.jsonl`.
+
+## Help with setup
+
+Ghostbooking is free and MIT-licensed. If you'd rather have it installed for your team, adapted to your sheet, or connected to another tool, I do that as a fixed-price job: [mabenafia.vercel.app](https://mabenafia.vercel.app).

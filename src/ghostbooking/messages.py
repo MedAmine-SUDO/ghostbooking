@@ -110,6 +110,64 @@ def no_show_message(b: Booking, day: date) -> Message:
                    subject=f"{b.room} released")
 
 
+def _hours(h: float) -> str:
+    h = round(h * 2) / 2  # to the half hour
+    return f"{h:g} h"
+
+
+def weekly_message(entries: list[dict], now: datetime, source_name: str) -> Message | None:
+    """The Friday post: what Ghostbooking did this week, from the audit log."""
+    removed = [e for e in entries if e.get("event") == "removed" and isinstance(e.get("booking"), dict)]
+    by_kind: dict[str, list[dict]] = {}
+    for e in removed:
+        by_kind.setdefault(e.get("kind", "ghost"), []).append(e)
+    conflicts = sum(e.get("event") == "conflict" for e in entries)
+
+    def span(e: dict) -> tuple[datetime, datetime] | None:
+        b = e["booking"]
+        try:
+            day = date.fromisoformat(str(b["day"]))
+            return (datetime.combine(day, datetime.strptime(b["start"], "%H:%M").time()),
+                    datetime.combine(day, datetime.strptime(b["end"], "%H:%M").time()))
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    given_back = 0.0  # released early or no-show: the rest of the slot went back to the team
+    for e in by_kind.get("released", []) + by_kind.get("no_show", []):
+        if s := span(e):
+            at = datetime.fromisoformat(e["at"])
+            given_back += max(0.0, (s[1] - max(at, s[0])).total_seconds() / 3600)
+    booked: dict[str, float] = {}  # meetings that took place, per room
+    for e in by_kind.get("ended", []) + by_kind.get("ghost", []):
+        if s := span(e):
+            room = e["booking"]["room"]
+            booked[room] = booked.get(room, 0.0) + (s[1] - s[0]).total_seconds() / 3600
+
+    n = {k: len(v) for k, v in by_kind.items()}
+    if not (removed or conflicts):
+        return None
+    lines = [f"This week in {source_name}:"]
+    if n.get("ended"):
+        lines.append(f"• {n['ended']} meeting{'s' * (n['ended'] != 1)} freed the room as soon as "
+                     f"{'they' if n['ended'] != 1 else 'it'} ended")
+    if n.get("ghost"):
+        lines.append(f"• {n['ghost']} ghost booking{'s' * (n['ghost'] != 1)} from earlier days cleared")
+    early = n.get("released", 0) + n.get("no_show", 0)
+    if early:
+        parts = [f"{n['released']} released early" if n.get("released") else "",
+                 f"{n['no_show']} no-show{'s' * (n['no_show'] != 1)}" if n.get("no_show") else ""]
+        lines.append(f"• {' and '.join(p for p in parts if p)}: {_hours(given_back)} of room time "
+                     "given back")
+    if conflicts:
+        lines.append(f"• {conflicts} double booking{'s' * (conflicts != 1)} caught")
+    if booked:
+        room, hours = max(booked.items(), key=lambda kv: kv[1])
+        lines.append(f"• Busiest room: {room}, {_hours(hours)} of meetings")
+    year, week, _ = now.isocalendar()
+    return Message(key=f"weekly:{year}-W{week:02d}", kind="weekly", text="\n".join(lines),
+                   subject=f"Room bookings: week of {now - timedelta(days=now.weekday()):%d %b}")
+
+
 def skipped_message(reason: str, source_name: str, now: datetime) -> Message:
     return Message(key=f"skipped:{now.date()}", kind="skipped",
                    text=f"I couldn't clean {source_name} this morning: {reason}. "

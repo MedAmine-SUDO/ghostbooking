@@ -174,6 +174,29 @@ class Links(BaseModel):
 
 class Notifications(BaseModel):
     morning_summary: bool = True  # post what the reset did to the team channel
+    weekly_summary: str | None = "Fri 16:00"  # "Fri 16:00", or null for none
+
+    @field_validator("weekly_summary")
+    @classmethod
+    def _when(cls, v: str | None) -> str | None:
+        if v is not None:
+            weekly_at(v)
+        return v
+
+    def weekly(self) -> tuple[int, time] | None:
+        return weekly_at(self.weekly_summary) if self.weekly_summary else None
+
+
+def weekly_at(text: str) -> tuple[int, time]:
+    """ "Fri 16:00" -> (4, 16:00)."""
+    day, _, at = text.strip().partition(" ")
+    days = parse_recurrence(f"every {day}")
+    try:
+        if not days or len(days) != 1:
+            raise ValueError
+        return next(iter(days)), parse_time(at)
+    except ValueError:
+        raise ValueError(f"weekly_summary should look like 'Fri 16:00', not {text!r}") from None
 
 
 class Config(BaseModel):

@@ -11,3 +11,5 @@ wheels/
 examples/backups/
 examples/*.log.jsonl
 examples/*.state.json
+
+docs/frame*.png

@@ -1,0 +1,11 @@
+# docker compose up -d
+services:
+  ghostbooking:
+    build: .
+    restart: unless-stopped
+    user: "1000:1000"            # must be able to write the booking file: use the folder owner's id
+    ports: ["8080:8080"]         # for Keep/Release links; drop it if you don't use links
+    env_file: .env               # SLACK_BOT_TOKEN=..., GHOSTBOOKING_SECRET=...
+    volumes:
+      - ./ghostbooking:/config   # config.yaml, plus state, log and backups
+      - /path/to/shared/folder:/data

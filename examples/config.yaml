@@ -65,6 +65,7 @@ channels:
 
 notifications:
   morning_summary: true             # post what the reset did to the team channel
+  weekly_summary: "Fri 16:00"       # the week in a few lines; null for none
 
 reminders:
   before: 10                        # minutes before the start; 0 turns reminders off

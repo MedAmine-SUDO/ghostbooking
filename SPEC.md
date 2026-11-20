@@ -113,3 +113,5 @@ Python 3.12, `openpyxl` (Excel), `gspread` (Google Sheets), Pydantic + YAML conf
 5. Reminders + Keep/Release links + auto-release + scheduler.
 6. Google Sheets source.
 7. Weekly summary, Docker, CI, README with GIF, release v0.1.0.
+
+Status 20 Nov 2026: steps 1–7 built (v0.1.0). Not yet tried on real Slack/Teams/Discord/SMTP accounts or a real Google Sheet: channel and Google tests use recorded API shapes.

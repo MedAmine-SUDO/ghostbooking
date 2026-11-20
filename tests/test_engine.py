@@ -255,3 +255,42 @@ def test_page_escapes_booking_text(day):
         assert "&lt;b&gt;Atlas&lt;/b&gt;" in r.text and "<b>Atlas" not in r.text
     finally:
         server.shutdown()
+
+
+# --- weekly summary ----------------------------------------------------------------------------
+def test_weekly_summary_on_friday_from_the_weeks_log(day):
+    engine, hook = day
+    engine.run_pass(at("07:30"))  # 3 ghosts from last Friday, 1 double booking
+    engine.run_pass(at("13:50"))  # reminders; Youssef's 10:00 ended
+    sara_release = hook.link("Release the room", "Sara")
+    engine.answer(read_token(SECRET, sara_release, at("14:30")), at("14:30"))  # 1.5 h given back
+    engine.run_pass(at("16:05"))  # Karim's 14:30–15:30 ended
+    hook.kinds()
+    friday = datetime(2026, 11, 27, 16, 0)
+    assert not engine.weekly_due(datetime(2026, 11, 27, 15, 59))
+    assert engine.weekly_due(friday)
+    engine.run_pass(friday)
+    (weekly,) = [m for m in hook.got if m["kind"] == "weekly"]
+    assert weekly["to"] is None and weekly["key"] == "weekly:2026-W48"
+    text = weekly["text"]
+    assert "This week in room-bookings.xlsx:" in text
+    assert text.splitlines()[1:] == [
+        "• 2 meetings freed the room as soon as they ended",  # Youssef's 10:00, Karim's 14:30
+        "• 3 ghost bookings from earlier days cleared",  # last Friday's, cleared on Monday
+        # Sara released 14:00–16:00 at 14:30 (1.5 h); Ines never tapped Keep: 14:30–15:00 (0.5 h)
+        "• 1 released early and 1 no-show: 2 h of room time given back",
+        "• 1 double booking caught",
+        "• Busiest room: Atlas, 4 h of meetings",
+    ]
+    hook.kinds()
+    engine.run_pass(datetime(2026, 11, 27, 16, 1))
+    assert not [k for k, _ in hook.kinds() if k == "weekly"]  # once a week
+
+
+def test_weekly_summary_can_be_turned_off():
+    from ghostbooking.config import Notifications
+
+    assert Notifications(weekly_summary=None).weekly() is None
+    assert Notifications().weekly() == (4, time(16, 0))
+    with pytest.raises(ValueError, match="Fri 16:00"):
+        Notifications(weekly_summary="Friday afternoon")

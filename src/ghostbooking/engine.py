@@ -18,7 +18,13 @@ from rich.console import Console
 from . import audit
 from .config import Config
 from .links import LinkData
-from .messages import auto_releases, plan_messages, reminder_message, skipped_message
+from .messages import (
+    auto_releases,
+    plan_messages,
+    reminder_message,
+    skipped_message,
+    weekly_message,
+)
 from .models import Sheet
 from .notify import Delivery, Message, Outcome, build_notifier
 from .parsing import parse_recurrence
@@ -78,10 +84,10 @@ class Engine:
         is_reset = force_reset or self.reset_due(now)
         plan = plan_reset(sheet, cfg, now)
         if not is_reset and not cfg.rules.release_ended:
-            plan.removals = [r for r in plan.removals if r.kind != "ghost"]
+            plan.removals = [r for r in plan.removals if r.kind not in ("ghost", "ended")]
         plan.removals += self._answers(sheet, plan, now)
 
-        reminders = self._reminders(sheet, plan, now)
+        reminders = self._reminders(sheet, plan, now) + self._weekly(now, source.name)
         p = Pass(now, is_reset, source.name, plan)
         p.messages = plan_messages(plan, cfg, source.name, summary=is_reset) + reminders
         if dry_run:
@@ -91,14 +97,22 @@ class Engine:
             p.backup = source.remove_rows(plan.rows_to_remove)
         except SourceBusy as e:
             p.skipped = str(e)
-            audit.record(cfg.log, "skipped", reason=p.skipped)
+            audit.record(cfg.log, "skipped", at=now, reason=p.skipped)
             # Reminders don't need the file. The rest waits until the file can be written.
             p.messages = reminders + ([skipped_message(p.skipped, p.source_name, now)] if is_reset else [])
-            p.outcome = self.notifier.send(p.messages)
+            p.outcome = self._send(p.messages, now)
             return p
         self._record(plan, is_reset, now)
-        p.outcome = self.notifier.send(p.messages)
+        p.outcome = self._send(p.messages, now)
         return p
+
+    def _send(self, messages: list[Message], now: datetime) -> Outcome:
+        outcome = self.notifier.send(messages)
+        failed = {d.message.key for d, _ in outcome.failed}
+        for m in messages:
+            if m.kind == "weekly" and m.key not in failed:  # failed: try again next pass
+                self.state.mark("weeklies", m.key.removeprefix("weekly:"))
+        return outcome
 
     def _answers(self, sheet: Sheet, plan: Plan, now: datetime) -> list[Removal]:
         """Bookings released with a link, and no-shows nobody kept."""
@@ -139,16 +153,36 @@ class Engine:
     def _record(self, plan: Plan, is_reset: bool, now: datetime) -> None:
         log = self.cfg.log
         for r in plan.removals:
-            audit.record(log, "removed", kind=r.kind, reason=r.reason, booking=audit.booking_dict(r.booking))
+            audit.record(log, "removed", at=now, kind=r.kind, reason=r.reason,
+                         booking=audit.booking_dict(r.booking))
         for c in plan.conflicts:
             if not self.notifier.was_sent(f"conflict:{c.clashing.occurrence(c.day)}"):
-                audit.record(log, "conflict", day=c.day, kept=audit.booking_dict(c.kept),
+                audit.record(log, "conflict", at=now, day=c.day, kept=audit.booking_dict(c.kept),
                              clashing=audit.booking_dict(c.clashing), suggestion=c.suggestion)
         done = [r.booking.occurrence(r.booking.day) for r in plan.removals if r.kind == "released"]  # type: ignore[arg-type]
         if done:
             self.state.forget("released", *done)
         if is_reset:
             self.state.mark("resets", str(now.date()))
+
+    def weekly_due(self, now: datetime) -> bool:
+        when = self.cfg.notifications.weekly()
+        if when is None:
+            return False
+        year, week, _ = now.isocalendar()
+        return (now.weekday() == when[0] and now.time() >= when[1]
+                and f"{year}-W{week:02d}" not in self.state.section("weeklies"))
+
+    def _weekly(self, now: datetime, source_name: str) -> list[Message]:
+        if not self.weekly_due(now):
+            return []
+        monday = datetime.combine(now.date() - timedelta(days=now.weekday()), datetime.min.time())
+        msg = weekly_message(audit.read(self.cfg.log, monday, now), now, source_name)
+        year, week, _ = now.isocalendar()
+        if msg is None:  # a quiet week: nothing to say, and nothing to retry
+            self.state.mark("weeklies", f"{year}-W{week:02d}")
+            return []
+        return [msg]
 
     # --- Keep / Release links --------------------------------------------------------------
     def answer(self, data: LinkData, now: datetime) -> tuple[str, str]:
@@ -162,10 +196,10 @@ class Engine:
                 return "Already free", f"{what} isn't booked any more. Nothing to do."
             if data.action == "keep":
                 self.state.mark("kept", occ)
-                audit.record(self.cfg.log, "kept", booking=what, by=data.booked_by)
+                audit.record(self.cfg.log, "kept", at=now, booking=what, by=data.booked_by)
                 return "Kept", f"{what} stays booked for you. Thanks for confirming."
             self.state.mark("released", occ)
-            audit.record(self.cfg.log, "release_requested", booking=what, by=data.booked_by)
+            audit.record(self.cfg.log, "release_requested", at=now, booking=what, by=data.booked_by)
             p = self._pass(now, dry_run=False, force_reset=False)
         if p.skipped:
             return "Released", (f"Thanks, {what} is released. The sheet is open in Excel right now, "

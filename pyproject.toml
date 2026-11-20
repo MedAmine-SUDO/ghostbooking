@@ -6,13 +6,29 @@ readme = "README.md"
 license = "MIT"
 authors = [{ name = "MedAmine-SUDO" }]
 requires-python = ">=3.12"
+keywords = ["meeting rooms", "room booking", "excel", "google sheets", "slack", "teams", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Scheduling",
+]
 dependencies = [
     "httpx>=0.27",
     "openpyxl>=3.1",
     "pydantic>=2.7",
     "pyyaml>=6.0",
     "rich>=13.7",
+    "tzdata>=2024.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/MedAmine-SUDO/ghostbooking"
+Issues = "https://github.com/MedAmine-SUDO/ghostbooking/issues"
 
 [project.scripts]
 ghostbooking = "ghostbooking.cli:main"

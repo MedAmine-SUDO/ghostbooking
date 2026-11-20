@@ -1,0 +1,8 @@
+.venv
+.git
+**/__pycache__
+.pytest_cache
+.ruff_cache
+examples/backups
+examples/*.log.jsonl
+examples/*.state.json

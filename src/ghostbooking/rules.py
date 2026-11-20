@@ -13,7 +13,7 @@ from .models import Booking, Issue, Sheet
 class Removal:
     booking: Booking
     reason: str
-    kind: str = "ghost"  # ghost | conflict | released (Release link) | no_show (nobody tapped Keep)
+    kind: str = "ghost"  # ghost (from an earlier day) | ended (today) | conflict | released | no_show
 
 
 @dataclass(frozen=True)
@@ -90,9 +90,10 @@ def plan_reset(sheet: Sheet, cfg: Config, now: datetime) -> Plan:
         if protected:
             plan.protected.append(b)
         if not b.recurring and datetime.combine(b.day, b.end) <= now and not protected:  # type: ignore[arg-type]
-            reason = (f"ended at {b.end:%H:%M} today" if b.day == today
-                      else f"left over from {b.day:%a %d %b}")
-            plan.removals.append(Removal(b, reason))
+            if b.day == today:
+                plan.removals.append(Removal(b, f"ended at {b.end:%H:%M} today", "ended"))
+            else:
+                plan.removals.append(Removal(b, f"left over from {b.day:%a %d %b}"))
         else:
             remaining.append(b)
 

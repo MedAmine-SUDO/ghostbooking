@@ -53,7 +53,7 @@ def _bookings_table(sheet, plan: Plan) -> Table:
 
 def _print_plan(plan: Plan, verbose: bool = True) -> None:
     if plan.removals:
-        ghosts = all(r.kind == "ghost" for r in plan.removals)
+        ghosts = all(r.kind in ("ghost", "ended") for r in plan.removals)
         label = "Ghost bookings to clear" if ghosts else "Bookings to free"
         console.print(f"\n[bold]{label} ({len(plan.removals)})[/]")
         for r in plan.removals:
