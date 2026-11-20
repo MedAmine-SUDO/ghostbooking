@@ -13,6 +13,7 @@ from .models import Booking, Issue, Sheet
 class Removal:
     booking: Booking
     reason: str
+    kind: str = "ghost"  # ghost | conflict | released (Release link) | no_show (nobody tapped Keep)
 
 
 @dataclass(frozen=True)
@@ -113,7 +114,8 @@ def plan_reset(sheet: Sheet, cfg: Config, now: datetime) -> Plan:
             plan.conflicts.append(Conflict(day, clash, b, _suggest(b, day, accepted, rooms, cfg)))
             if cfg.rules.conflicts == "remove" and not is_protected(b, cfg) and b.row not in removed:
                 removed.add(b.row)
-                plan.removals.append(Removal(b, f"double-booked with row {clash.row} ({clash.booked_by or 'someone'})"))
+                plan.removals.append(Removal(b, f"double-booked with row {clash.row} ({clash.booked_by or 'someone'})",
+                                             "conflict"))
     return plan
 
 

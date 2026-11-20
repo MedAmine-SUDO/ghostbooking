@@ -2,9 +2,9 @@
 
 **For startups that still book meeting rooms in a shared Excel file.**
 
-Every morning, Ghostbooking clears the bookings people forgot to remove, tells people about double bookings with a free alternative, and posts a short summary to the team, on Slack, Teams, Discord, email or any webhook. Reminders before and after meetings come next. Nobody has to change how they book.
+Every morning, Ghostbooking clears the bookings people forgot to remove, tells people about double bookings with a free alternative, posts a short summary to the team, and reminds people before their meetings with one-click Keep / Release links. It works on Slack, Teams, Discord, email or any webhook. Nobody has to change how they book.
 
-> Work in progress: steps 1–4 of [SPEC.md](SPEC.md) are done (reading the sheet, the cleanup rules, safe writes, channels). Reminders, Keep/Release links and the scheduler come next.
+> Work in progress: steps 1–5 of [SPEC.md](SPEC.md) are done. Google Sheets, the weekly summary and Docker come next.
 
 ## Try it in 30 seconds
 
@@ -56,3 +56,16 @@ channels:
 - People who aren't in `people:`, or can't be reached directly, get their message in the team channel with their name on it. `ghostbooking check` lists them.
 - Each message is sent once. If a channel fails, the others still go out, the failure is logged, and the next run tries again (exit code 3).
 - `--dry-run` shows every message and where it would go.
+
+## During the day
+
+`ghostbooking run` does a pass every minute (or run `ghostbooking tick` from cron, Task Scheduler or GitHub Actions):
+
+- **Morning reset** once per working day at `reset_at` (07:30 by default). `tick --reset` forces it.
+- **Reminder** 10 minutes before each meeting: *"Reminder: Atlas, 14:00–15:00, starts in 10 minutes. Tap Keep by 14:15, or the room is released for others."*
+- **Keep / Release links** in the reminder. If nobody taps Keep within 15 minutes of the start, the room is released and the person is told. Recurring and protected meetings are never auto-released.
+- **Meetings that end** are removed from the sheet right away, so nobody wonders whether the room is still taken.
+
+Links need `ghostbooking run` reachable by your team (`links.base_url`). Opening a link only shows a confirm page; the button does the work, so Slack previews and email link scanners can't release a room by accident. Links are signed and expire when the meeting ends. Without `links:`, reminders are plain text and bookings still free themselves when they end.
+
+If the sheet is open in Excel, reminders still go out; changes wait until it's closed (exit code 2).

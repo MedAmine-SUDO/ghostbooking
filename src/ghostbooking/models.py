@@ -33,6 +33,10 @@ class Booking:
     def span_on(self, d: date) -> tuple[datetime, datetime]:
         return datetime.combine(d, self.start), datetime.combine(d, self.end)
 
+    def occurrence(self, d: date) -> str:
+        """Stable id of this booking on day `d`. Rows move when the sheet is cleaned; this doesn't."""
+        return f"{d}:{self.room.strip().casefold()}:{self.start:%H%M}:{self.booked_by.strip().casefold()}"
+
     def when(self) -> str:
         if self.recurring:
             days = sorted(self.weekdays)  # type: ignore[arg-type]

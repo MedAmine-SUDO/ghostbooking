@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from .config import Config
+from .links import booking_links
 from .models import Booking
 from .notify import Message
 from .rules import Conflict, Plan, is_protected
@@ -30,8 +31,7 @@ def conflict_message(c: Conflict, cfg: Config, removed: bool) -> Message:
     text = (f"Your booking of {where} was removed: it overlapped {other}" if removed
             else f"Heads up: your booking of {where} overlaps {other}")
     text += f" {c.suggestion}." if c.suggestion else " No other room is free at that time."
-    key = f"conflict:{c.day}:{b.room.strip().casefold()}:{b.start:%H%M}:{b.booked_by.strip().casefold()}"
-    return Message(key=key, kind="conflict", text=text, to=b.booked_by or None,
+    return Message(key=f"conflict:{b.occurrence(c.day)}", kind="conflict", text=text, to=b.booked_by or None,
                    subject=f"Double booking: {b.room}, {c.day:%a %d %b} {_span(b)}")
 
 
@@ -72,12 +72,42 @@ def summary_message(plan: Plan, source_name: str) -> Message | None:
                    subject=f"Room bookings: morning reset, {plan.now:%a %d %b}")
 
 
-def plan_messages(plan: Plan, cfg: Config, source_name: str) -> list[Message]:
+def plan_messages(plan: Plan, cfg: Config, source_name: str, summary: bool = True) -> list[Message]:
     removed = plan.rows_to_remove
     msgs = [conflict_message(c, cfg, c.clashing.row in removed) for c in plan.conflicts]
-    if cfg.notifications.morning_summary and (s := summary_message(plan, source_name)):
+    msgs += [no_show_message(r.booking, plan.now.date()) for r in plan.removals if r.kind == "no_show"]
+    if summary and cfg.notifications.morning_summary and (s := summary_message(plan, source_name)):
         msgs.append(s)
     return msgs
+
+
+def auto_releases(b: Booking, cfg: Config) -> bool:
+    """Is this booking freed when nobody taps Keep? Only one-off, unprotected bookings are."""
+    return bool(cfg.links and cfg.links.no_answer == "release" and not b.recurring
+                and not is_protected(b, cfg))
+
+
+def reminder_message(b: Booking, day: date, now: datetime, cfg: Config) -> Message:
+    start = datetime.combine(day, b.start)
+    minutes = max(1, round((start - now).total_seconds() / 60))
+    text = f"Reminder: {b.room}, {_span(b)}{_title(b)}, starts in {minutes} minute{'s' * (minutes != 1)}."
+    links: tuple = ()
+    if cfg.links and not b.recurring:
+        links = booking_links(cfg.links, b, day)
+        if auto_releases(b, cfg):
+            deadline = start + timedelta(minutes=cfg.links.answer_within)
+            text += f" Tap Keep by {deadline:%H:%M}, or the room is released for others."
+        else:
+            text += " Not needed any more? Release it so others can use it."
+    return Message(key=f"remind:{b.occurrence(day)}", kind="reminder", text=text, to=b.booked_by or None,
+                   links=links, subject=f"{b.room} at {b.start:%H:%M}")
+
+
+def no_show_message(b: Booking, day: date) -> Message:
+    return Message(key=f"no_show:{b.occurrence(day)}", kind="no_show", to=b.booked_by or None,
+                   text=f"Nobody tapped Keep for {b.room}, {_span(b)}{_title(b)}, so I released the room. "
+                        "Need it after all? Add it back to the sheet.",
+                   subject=f"{b.room} released")
 
 
 def skipped_message(reason: str, source_name: str, now: datetime) -> Message:

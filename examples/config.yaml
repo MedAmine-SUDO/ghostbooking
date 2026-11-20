@@ -20,6 +20,7 @@ rules:
   day_start: "08:00"
   day_end: "19:00"
   conflicts: notify           # notify | remove (remove the later booking)
+  release_ended: true         # free a booking as soon as it ends, not just at the next reset
 
 protected:                    # bookings matching a rule are never removed
   - title_contains: standup
@@ -64,3 +65,16 @@ channels:
 
 notifications:
   morning_summary: true             # post what the reset did to the team channel
+
+reminders:
+  before: 10                        # minutes before the start; 0 turns reminders off
+  recurring: false                  # true: also remind for "Every Monday" meetings
+
+# Keep / Release links in reminders. Needs `ghostbooking run`, reachable by your team at base_url
+# (an office server, a small VPS, or a tunnel). Leave this out and reminders are plain text.
+# links:
+#   base_url: https://rooms.example.com
+#   secret: ${GHOSTBOOKING_SECRET}  # any long random string: openssl rand -hex 24
+#   listen: 0.0.0.0:8080
+#   no_answer: release              # nobody tapped Keep within answer_within minutes of the start
+#   answer_within: 15

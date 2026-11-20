@@ -67,6 +67,7 @@ class Rules(BaseModel):
     day_start: time = time(8, 0)
     day_end: time = time(19, 0)
     conflicts: Literal["notify", "remove"] = "notify"  # what happens to the later booking
+    release_ended: bool = True  # free a booking as soon as it ends, not only at the morning reset
 
     @field_validator("reset_at", "day_start", "day_end", mode="before")
     @classmethod
@@ -142,6 +143,25 @@ ChannelConfig = Annotated[
 ]
 
 
+class Reminders(BaseModel):
+    before: int = Field(10, ge=0)  # minutes before the start; 0 turns reminders off
+    recurring: bool = False  # also remind for "Every Monday" meetings (noisy for daily standups)
+
+
+class Links(BaseModel):
+    """Keep / Release links in reminders. Needs `ghostbooking run`, reachable at `base_url`."""
+
+    base_url: str  # how people reach the endpoint, e.g. https://rooms.example.com
+    secret: str = Field(min_length=16)  # signs the links; keep it in an environment variable
+    listen: str = "0.0.0.0:8080"
+    no_answer: Literal["release", "keep"] = "release"  # nobody tapped Keep after the start
+    answer_within: int = Field(15, ge=1)  # minutes after the start
+
+    def address(self) -> tuple[str, int]:
+        host, _, port = self.listen.rpartition(":")
+        return host or "0.0.0.0", int(port)
+
+
 class Notifications(BaseModel):
     morning_summary: bool = True  # post what the reset did to the team channel
 
@@ -158,6 +178,8 @@ class Config(BaseModel):
     people: dict[str, Person] = Field(default_factory=dict)
     channels: list[ChannelConfig] = Field(default_factory=lambda: [ConsoleChannel(type="console")])
     notifications: Notifications = Field(default_factory=Notifications)
+    reminders: Reminders = Field(default_factory=Reminders)
+    links: Links | None = None  # no links: reminders only, bookings free themselves when they end
 
     @field_validator("people", mode="before")
     @classmethod

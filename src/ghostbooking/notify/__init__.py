@@ -8,6 +8,7 @@ import httpx
 from rich.console import Console
 
 from .. import config as c
+from ..state import State
 from .base import Channel, ChannelError
 from .console import ConsoleChannel
 from .discord import DiscordChannel
@@ -21,7 +22,7 @@ from .webhook import WebhookChannel
 
 
 def build_notifier(cfg: c.Config, console: Console | None = None, http: httpx.Client | None = None,
-                   smtp: Callable | None = None) -> Notifier:
+                   smtp: Callable | None = None, state: State | None = None) -> Notifier:
     http = http or httpx.Client(timeout=15)
     channels: list[Channel] = []
     for ch in cfg.channels:
@@ -38,7 +39,7 @@ def build_notifier(cfg: c.Config, console: Console | None = None, http: httpx.Cl
                 channels.append(DiscordChannel(ch, http))
             case c.WebhookChannel():
                 channels.append(WebhookChannel(ch, http))
-    return Notifier(channels, People(cfg.people), cfg.state, cfg.log)
+    return Notifier(channels, People(cfg.people), state or State(cfg.state), cfg.log)
 
 
 __all__ = ["Channel", "ChannelError", "Delivery", "Link", "Message", "Notifier", "Outcome",

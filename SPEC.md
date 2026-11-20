@@ -20,9 +20,9 @@ Not for: teams already on Google Calendar or Outlook room resources (they have a
 |---|---|---|
 | **Morning reset** | Every working day, e.g. 07:30 | Removes past bookings and expired ones, keeps protected recurring meetings, writes a fresh, clean file. |
 | **Conflict fixing** | At the reset and on every scan | Finds overlapping bookings for the same room. Rule: first booked wins (by row order or a "booked at" column); the other person is told and offered the next free slot. |
-| **Reminder** | N minutes before start (default 10) | "Your meeting in Atlas starts at 14:00." |
-| **Keep or release?** | At the booked end time | Message with two one-click links: **Keep** (extends nothing, just confirms) / **Release** (frees the rest of the slot). |
-| **Auto-release** | If no answer within N minutes (default 15) | Applies the configured default: release (default) or keep. |
+| **Reminder + keep or release?** | N minutes before start (default 10) | "Your meeting in Atlas starts at 14:00", with two one-click links: **Keep** (confirms) / **Release** (frees the room now). |
+| **Auto-release** | If nobody taps Keep within N minutes of the start (default 15) | Applies the configured default: release (default) or keep. Only one-off, unprotected bookings; only if a reminder was sent. |
+| **End of meeting** | At the booked end time | The booking is removed from the sheet on the next pass (`release_ended`, on by default). |
 | **Weekly summary** | Friday afternoon | To the team channel: ghost bookings cleared, room-hours freed, conflicts fixed, busiest room. |
 
 **Protected meetings:** rules in config, e.g. `title contains "Standup"`, `room: Atlas, weekday: Mon, 10:00–11:00`, or a "Protected" column set to yes. These are never removed.
@@ -75,19 +75,22 @@ Every channel only needs to "send text with links", so adding one stays small.
 
 - Signed, single-use links that expire, served by a tiny built-in web endpoint (`/r/<token>`): Keep or Release, then a simple confirmation page.
 - This is what makes it channel-agnostic: no Slack buttons, no Teams cards, just links.
-- **No-server mode:** teams that don't want to expose an endpoint run it on a schedule (cron, GitHub Actions or Windows Task Scheduler) with links turned off; auto-release then does the job.
+- Opening a link only shows a confirm page; the button (a POST) acts. Chat previews and email link scanners open links on their own and must never release a room.
+- **No-server mode:** teams that don't want to expose an endpoint run `tick` on a schedule (cron, GitHub Actions or Windows Task Scheduler) with links turned off. Reminders are plain text, and bookings free themselves when they end.
+
+> Changed 20 Nov 2026: the Keep/Release question moved from the end time to the reminder before the start. At the end time the booking frees itself anyway, so the question only helps when it can catch a no-show or a cancelled meeting.
 
 ## 6. Running it
 
 - **Docker:** `docker run -v ./config.yaml:/app/config.yaml -v "/path/to/shared folder":/data ghostbooking` starts the scheduler and the link endpoint.
-- **pip / uv:** `ghostbooking run` (long-running) or `ghostbooking tick` (one pass, for cron).
+- **pip / uv:** `ghostbooking run` (long-running) or `ghostbooking tick` (one pass of whatever is due, for cron; `--reset` forces the morning reset).
 - `ghostbooking check`: validates the config, reads the sheet, prints the parsed bookings and the people it can't match. This is the first thing a new team runs.
 - Time zone per team (`Africa/Tunis`, `Europe/Paris`…), plus working days and hours.
 - An audit log (JSON lines + a human-readable line) of every change and every message sent.
 
 ## 7. Stack
 
-Python 3.12, `openpyxl` (Excel), `gspread` (Google Sheets), Pydantic settings + YAML config, APScheduler, a small Starlette/FastAPI app for links, `httpx` for channels, `itsdangerous` for signed tokens, pytest. Docker image + GitHub Actions CI. MIT licence.
+Python 3.12, `openpyxl` (Excel), `gspread` (Google Sheets), Pydantic + YAML config, `httpx` for channels, pytest. The scheduler loop, the link endpoint (`http.server`) and the HMAC-signed tokens use the standard library, so there are fewer dependencies to install and audit. Docker image + GitHub Actions CI. MIT licence.
 
 ## 8. Demo and proof
 
