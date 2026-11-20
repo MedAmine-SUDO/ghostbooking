@@ -159,7 +159,7 @@ def test_slack_webhook_posts_to_its_channel_with_a_mention(tmp_path):
     hook = {"type": "slack", "webhook_url": "https://hooks.slack.com/x"}
     build_notifier(cfg(tmp_path, [hook], PEOPLE), http=rec.client()).send([MSG])
     assert rec.requests[0].url == "https://hooks.slack.com/x"
-    assert rec.bodies()[0]["text"].startswith("<@U1> Room clash.")
+    assert rec.bodies()[0]["text"].startswith("For <@U1>:\nRoom clash.")
 
 
 def test_slack_text_is_escaped(tmp_path):
@@ -174,7 +174,7 @@ def test_discord_mentions_only_the_person(tmp_path):
     people = {"Karim": {"discord": "42"}}
     build_notifier(cfg(tmp_path, [{"type": "discord", "webhook_url": "https://d/h"}], people),
                    http=rec.client()).send([MSG])
-    assert rec.bodies()[0] == {"content": "<@42> Room clash.\n[Keep](<https://x/k>)",
+    assert rec.bodies()[0] == {"content": "For <@42>:\nRoom clash.\n[Keep](<https://x/k>)",
                                "allowed_mentions": {"users": ["42"]}}
 
 
@@ -183,7 +183,7 @@ def test_teams_posts_an_adaptive_card_with_link_buttons(tmp_path):
     build_notifier(cfg(tmp_path, [{"type": "teams", "webhook_url": "https://t/h"}], PEOPLE),
                    http=rec.client()).send([MSG])
     card = rec.bodies()[0]["attachments"][0]["content"]
-    assert card["body"][0]["text"] == "**Karim**"
+    assert card["body"][0]["text"] == "For **Karim**:"
     assert card["actions"] == [{"type": "Action.OpenUrl", "title": "Keep", "url": "https://x/k"}]
 
 
@@ -245,13 +245,12 @@ def test_conflict_message_wording_and_stable_key():
                  "Partner call"), "Kepler is free 14:30–15:30")
     m = conflict_message(c, Config(source={"path": "x"}), removed=False)
     assert m.to == "Karim"
-    assert m.text == ("Heads up: your booking of Atlas on Mon 23 Nov at 14:30–15:30 (“Partner call”) "
-                      "overlaps Ines's booking, 14:00–15:00, which was booked first. "
-                      "Kepler is free 14:30–15:30.")
+    assert m.text == ("⚠️ **Double booking: Atlas, Mon 23 Nov 14:30–15:30** · Partner call\n"
+                      "Ines has Atlas 14:00–15:00. They booked first.\n"
+                      "💡 Kepler is free 14:30–15:30.")
     assert "8" not in m.key  # rows move when the sheet is cleaned; the key must not
     gone = conflict_message(c, Config(source={"path": "x"}), removed=True)
-    assert gone.text.startswith("Your booking of Atlas on Mon 23 Nov at 14:30–15:30 (“Partner call”) "
-                                "was removed: it overlapped Ines's")
+    assert gone.text.startswith("❌ **Your booking was removed: Atlas, Mon 23 Nov 14:30–15:30**")
 
 
 def test_summary_is_skipped_on_a_quiet_morning():
@@ -263,8 +262,26 @@ def test_long_summaries_are_cut_short():
                 removals=[Removal(bk(i, "Atlas", (9,), (10,), "A"), "old") for i in range(14)],
                 issues=[Issue(20, "not a time: 'tbd'")])
     text = summary_message(plan, "b.xlsx").text
-    assert "Cleared 14 ghost bookings:" in text and "• and 4 more" in text
-    assert "1 row I couldn't read" in text
+    assert "🧹 **14 old bookings cleared**" in text and "• and 4 more" in text
+    assert "✏️ **1 row to fix**" in text
+
+
+def test_bold_becomes_each_channels_markup():
+    from ghostbooking.notify.message import bold, plain
+
+    assert bold("⏰ **Atlas · 14:00** · Demo", "*") == "⏰ *Atlas · 14:00* · Demo"  # Slack
+    assert bold("**a** and **b**", "[bold]", "[/bold]") == "[bold]a[/bold] and [bold]b[/bold]"
+    assert plain("**Week of 23 Nov**") == "Week of 23 Nov"  # e-mail
+
+
+def test_team_messages_link_to_the_sheet():
+    cfg_ = Config(source={"path": "x.xlsx", "label": "Room bookings", "url": "https://share/rooms"})
+    plan = Plan(now=datetime(2026, 11, 23, 7, 30), issues=[Issue(20, "not a time: 'tbd'")])
+    msg = summary_message(plan, "Room bookings", cfg_)
+    assert msg.text.startswith("🌅 **Morning reset · Room bookings · Mon 23 Nov**")
+    assert [(link.label, link.url) for link in msg.links] == [("Open the sheet", "https://share/rooms")]
+    gsheet = Config(source={"type": "gsheet", "spreadsheet": "1AbC"})
+    assert gsheet.source.url == "https://docs.google.com/spreadsheets/d/1AbC"
 
 
 def test_example_plan_messages(example):

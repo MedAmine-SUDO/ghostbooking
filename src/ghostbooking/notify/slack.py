@@ -5,7 +5,7 @@ import httpx
 from ..config import Person
 from ..config import SlackChannel as SlackConfig
 from .base import Channel, ChannelError, who
-from .message import Message
+from .message import Message, bold
 
 API = "https://slack.com/api/chat.postMessage"
 
@@ -36,9 +36,9 @@ class SlackChannel(Channel):
         return bool(self.cfg.webhook_url or (self.cfg.token and self.cfg.team_channel))
 
     def render(self, msg: Message, about: Person | str | None) -> str:
-        text = _escape(msg.text)
+        text = bold(_escape(msg.text), "*")
         if about:
-            text = f"{_mention(about)} {text}"
+            text = f"For {_mention(about)}:\n{text}"
         if msg.links:
             text += "\n" + "  ·  ".join(f"<{link.url}|{_escape(link.label)}>" for link in msg.links)
         return text

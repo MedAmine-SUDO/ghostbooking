@@ -27,7 +27,11 @@ source:
   path: /mnt/shared/Room bookings.xlsx
   sheet: Bookings
   columns: {room: Salle, date: Jour, start: Début, end: Fin, booked_by: Réservé par}
+  label: Room bookings   # optional: the name people know it by, used in messages
+  url: https://yourcompany.sharepoint.com/…   # optional: where people open it ("Open the sheet")
 ```
+
+`path` is where Ghostbooking reads the file; `url` is where your team opens it (SharePoint, OneDrive, a shared drive link). With a `url`, team messages end with an **Open the sheet** link. Google Sheets get that link automatically.
 
 **Google Sheets** (`pip install 'ghostbooking[google]'`):
 

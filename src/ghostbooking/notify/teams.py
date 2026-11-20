@@ -23,7 +23,7 @@ class TeamsChannel(Channel):
     def card(self, msg: Message, about: Person | str | None) -> dict:
         body: list[dict] = []
         if about:
-            body.append({"type": "TextBlock", "text": f"**{who(about)}**", "wrap": True})
+            body.append({"type": "TextBlock", "text": f"For **{who(about)}**:", "wrap": True})
         body += [{"type": "TextBlock", "text": line, "wrap": True} for line in msg.text.splitlines() if line]
         return {
             "type": "message",

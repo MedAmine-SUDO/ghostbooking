@@ -26,9 +26,9 @@ class DiscordChannel(Channel):
         users: list[str] = []
         text = msg.text
         if isinstance(about, Person) and about.discord:
-            text, users = f"<@{about.discord}> {text}", [about.discord]
+            text, users = f"For <@{about.discord}>:\n{text}", [about.discord]
         elif about:
-            text = f"**{who(about)}** {text}"
+            text = f"For **{who(about)}**:\n{text}"
         if msg.links:
             text += "\n" + " · ".join(f"[{link.label}](<{link.url}>)" for link in msg.links)
         return (text if len(text) <= LIMIT else text[: LIMIT - 1] + "…"), users

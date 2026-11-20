@@ -5,7 +5,7 @@ import httpx
 from ..config import Person
 from ..config import WebhookChannel as WebhookConfig
 from .base import Channel, ChannelError, who
-from .message import Message
+from .message import Message, plain
 
 
 class WebhookChannel(Channel):
@@ -28,7 +28,8 @@ class WebhookChannel(Channel):
             "key": msg.key,
             "kind": msg.kind,
             "subject": msg.subject,
-            "text": msg.text,
+            "text": plain(msg.text),
+            "markdown": msg.text,  # **bold**, for receivers that can show it
             "links": [{"label": link.label, "url": link.url} for link in msg.links],
             "to": to.model_dump(exclude_none=True) if to else None,  # None = the team channel
             "about": who(about) or None,

@@ -77,7 +77,7 @@ def test_a_whole_monday(day):
     assert ("Atlas", "10:00 Youssef") not in rooms(engine)
     ines_keep = hook.link("Keep it", "Ines")
     sara_text = next(m["text"] for m in hook.got if m["to"]["name"] == "Sara")
-    assert "Tap Keep by 14:15, or the room is released for others." in sara_text
+    assert "Tap Keep by 14:15, or the room goes back to the team." in sara_text
     hook.kinds()
 
     # Ines taps Keep. Sara doesn't, so at 14:15 her room is released and she's told.
@@ -272,16 +272,22 @@ def test_weekly_summary_on_friday_from_the_weeks_log(day):
     engine.run_pass(friday)
     (weekly,) = [m for m in hook.got if m["kind"] == "weekly"]
     assert weekly["to"] is None and weekly["key"] == "weekly:2026-W48"
-    text = weekly["text"]
-    assert "This week in room-bookings.xlsx:" in text
-    assert text.splitlines()[1:] == [
-        "• 2 meetings freed the room as soon as they ended",  # Youssef's 10:00, Karim's 14:30
-        # last Friday's 3, cleared on Monday, + Lina's Tuesday 1:1, cleared by this same pass
-        "• 4 ghost bookings from earlier days cleared",
+    text = weekly["markdown"]  # "text" is the same without the **bold**
+    assert text.splitlines() == [
+        "📊 **Week of 23 Nov · Room bookings**",  # source.label in the example config
+        "",
         # Sara released 14:00–16:00 at 14:30 (1.5 h); Ines never tapped Keep: 14:30–15:00 (0.5 h)
-        "• 1 released early and 1 no-show: 2 h of room time given back",
-        "• 1 double booking caught",
-        "• Busiest room: Atlas, 4 h of meetings",
+        "⏱️ **2 h of room time given back**",
+        "1 released early, 1 no-show",
+        "",
+        # Youssef's 10:00 and Karim's 14:30 ended; last Friday's 3, cleared on Monday,
+        # + Lina's Tuesday 1:1, cleared by this same pass
+        "🧹 **6 old bookings cleaned up**",
+        "2 as soon as they ended, 4 left over from earlier days",
+        "",
+        "⚠️ **1 double booking caught**",
+        "",
+        "🏆 **Busiest room: Atlas** · 4 h of meetings",
     ]
     hook.kinds()
     engine.run_pass(datetime(2026, 11, 27, 16, 1))

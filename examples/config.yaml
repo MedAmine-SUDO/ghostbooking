@@ -5,6 +5,8 @@ source:
   type: excel                 # excel | csv
   path: room-bookings.xlsx    # relative to this file; a synced or shared folder in real life
   sheet: Bookings
+  label: Room bookings        # optional: what people call it in messages (default: the file name)
+  # url: https://yourcompany.sharepoint.com/...   # optional: where people open it, linked in messages
   columns:                    # the column headers in YOUR sheet
     room: Room
     date: Date                # a date, or "Every Monday", "daily", "weekdays"

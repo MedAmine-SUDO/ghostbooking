@@ -28,6 +28,7 @@ from ghostbooking import cli
 from ghostbooking.config import Links, load_config
 from ghostbooking.engine import Engine
 from ghostbooking.messages import reminder_message
+from ghostbooking.notify.message import bold
 from ghostbooking.rules import plan_reset
 from ghostbooking.sources import open_source
 from ghostbooking.web import make_server
@@ -159,7 +160,7 @@ def main() -> None:
         msg = reminder_message(ines, ines.day, datetime(2026, 11, 23, 13, 50), cfg)
         chat = ('<div class="chat"><header>Direct message</header><div class="msg">'
                 '<div class="avatar">👻</div><div><b>Ghostbooking <span style="color:#8a93a3;font-weight:400">'
-                f"13:50</span></b><p>{escape(msg.text)}</p>"
+                f"13:50</span></b><p>{bold(escape(msg.text), "<strong>", "</strong>").replace(chr(10), "<br>")}</p>"
                 '<span class="btn primary">Keep it</span><span class="btn">Release the room</span>'
                 "</div></div></div>")
         frames.append(scene("13:50, on Slack, Teams, Discord or email", "A reminder before the meeting", chat))

@@ -7,7 +7,7 @@ from email.message import EmailMessage
 from ..config import EmailChannel as EmailConfig
 from ..config import Person
 from .base import Channel, ChannelError, who
-from .message import Message
+from .message import Message, plain
 
 
 class EmailChannel(Channel):
@@ -30,7 +30,7 @@ class EmailChannel(Channel):
         em["From"] = self.cfg.sender
         em["To"] = to.email if to else self.cfg.team_email
         em["Subject"] = msg.subject + (f" (for {who(about)})" if about and not to else "")
-        body = msg.text
+        body = plain(msg.text)
         if msg.links:
             body += "\n\n" + "\n".join(f"{link.label}: {link.url}" for link in msg.links)
         em.set_content(body + "\n\n-- \nSent by Ghostbooking\n")

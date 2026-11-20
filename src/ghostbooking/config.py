@@ -34,6 +34,8 @@ class SourceConfig(BaseModel):
     header_row: int = 1
     columns: Columns = Field(default_factory=Columns)
     dayfirst: bool = True  # 03/04 = 3 April; set false for US-style sheets
+    label: str | None = None  # what people call it in messages; default: the file name or sheet title
+    url: str | None = None  # where people open it (SharePoint, OneDrive, Drive...); gsheet: automatic
 
     @model_validator(mode="after")
     def _where(self) -> SourceConfig:
@@ -41,6 +43,9 @@ class SourceConfig(BaseModel):
             raise ValueError("a gsheet source needs `spreadsheet`: the sheet's URL or ID")
         if self.type != "gsheet" and self.path is None:
             raise ValueError(f"a {self.type} source needs `path`")
+        if self.type == "gsheet" and self.url is None:
+            s = self.spreadsheet or ""
+            self.url = s if s.startswith("http") else f"https://docs.google.com/spreadsheets/d/{s}"
         return self
 
 

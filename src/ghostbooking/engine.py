@@ -22,6 +22,7 @@ from .messages import (
     auto_releases,
     plan_messages,
     reminder_message,
+    sheet_links,
     skipped_message,
     weekly_message,
 )
@@ -89,9 +90,10 @@ class Engine:
 
         reminders = self._reminders(sheet, plan, now)
         p = Pass(now, is_reset, source.name, plan)
-        p.messages = plan_messages(plan, cfg, source.name, summary=is_reset) + reminders
+        label = cfg.source.label or source.name  # in messages: what people call the sheet
+        p.messages = plan_messages(plan, cfg, label, summary=is_reset) + reminders
         if dry_run:
-            p.messages += self._weekly(now, source.name)
+            p.messages += self._weekly(now, label)
             p.planned = self.notifier.plan(p.messages)
             return p
         try:
@@ -100,12 +102,12 @@ class Engine:
             p.skipped = str(e)
             audit.record(cfg.log, "skipped", at=now, reason=p.skipped)
             # Reminders don't need the file. The rest waits until the file can be written.
-            p.messages = reminders + self._weekly(now, source.name)
-            p.messages += [skipped_message(p.skipped, p.source_name, now)] if is_reset else []
+            p.messages = reminders + self._weekly(now, label)
+            p.messages += [skipped_message(p.skipped, label, now, sheet_links(cfg))] if is_reset else []
             p.outcome = self._send(p.messages, now)
             return p
         self._record(plan, is_reset, now)
-        p.messages += self._weekly(now, source.name)  # after _record: counts this pass's removals too
+        p.messages += self._weekly(now, label)  # after _record: counts this pass's removals too
         p.outcome = self._send(p.messages, now)
         return p
 
@@ -180,7 +182,8 @@ class Engine:
         if not self.weekly_due(now):
             return []
         monday = datetime.combine(now.date() - timedelta(days=now.weekday()), datetime.min.time())
-        msg = weekly_message(audit.read(self.cfg.log, monday, now + timedelta(seconds=1)), now, source_name)
+        entries = audit.read(self.cfg.log, monday, now + timedelta(seconds=1))
+        msg = weekly_message(entries, now, source_name, sheet_links(self.cfg))
         year, week, _ = now.isocalendar()
         if msg is None:  # a quiet week: nothing to say, and nothing to retry
             self.state.mark("weeklies", f"{year}-W{week:02d}")

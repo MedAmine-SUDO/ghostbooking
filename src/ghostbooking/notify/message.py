@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+
+_BOLD = re.compile(r"\*\*(.+?)\*\*")
+
+
+def bold(text: str, start: str, end: str | None = None) -> str:
+    """Turn the **bold** in message text into a channel's own markup ("" and "" for plain text)."""
+    return _BOLD.sub(lambda m: f"{start}{m.group(1)}{start if end is None else end}", text)
+
+
+def plain(text: str) -> str:
+    return bold(text, "")
 
 
 @dataclass(frozen=True)

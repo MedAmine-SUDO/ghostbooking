@@ -35,7 +35,7 @@ def test_dry_run_previews_messages(example, capsys):
 def test_skipped_run_tells_the_team(example, capsys):
     (example.parent / "~$room-bookings.xlsx").touch()
     main(["tick", "-c", str(example), "--now", "2026-11-23 07:30"])
-    assert "I couldn't clean room-bookings.xlsx this morning" in capsys.readouterr().out
+    assert "Morning reset skipped · Room bookings" in capsys.readouterr().out
 
 
 def test_check_lists_people_it_cannot_reach(example, capsys):
