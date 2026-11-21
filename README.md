@@ -2,10 +2,19 @@
 
 **For startups that still book meeting rooms in a shared Excel file.**
 
-![Ghostbooking: Friday's forgotten bookings cleared on Monday morning, a reminder with Keep and Release links, and the one-tap release page](docs/demo.gif)
+![Ghostbooking: Friday's forgotten bookings cleared on Monday morning, a reminder with Keep and Release links, and the one-tap release page](https://raw.githubusercontent.com/MedAmine-SUDO/ghostbooking/main/docs/demo.gif)
 
 Every morning, Ghostbooking clears the bookings people forgot to remove, tells people about double bookings with a free alternative, posts a short summary to the team, and reminds people before their meetings with one-click Keep / Release links. It works on Slack, Teams, Discord, email or any webhook. Nobody has to change how they book.
 
+
+## Install
+
+```bash
+pipx install ghostbooking          # or: uv tool install ghostbooking
+pipx install "ghostbooking[google]"   # with Google Sheets support
+```
+
+Python 3.12+. Or run it with Docker (see [Running it for a team](#running-it-for-a-team)).
 
 ## Try it in 30 seconds
 
@@ -34,7 +43,7 @@ source:
 
 `path` is where Ghostbooking reads the file; `url` is where your team opens it (SharePoint, OneDrive, a shared drive link). With a `url`, team messages end with an **Open the sheet** link. Google Sheets get that link automatically.
 
-**Google Sheets** (`uv sync --extra google`, or `pip install 'ghostbooking[google] @ git+https://github.com/MedAmine-SUDO/ghostbooking'`):
+**Google Sheets** (`pipx install "ghostbooking[google]"`, or `uv sync --extra google` in a clone):
 
 1. In Google Cloud, create a project, enable the **Google Sheets API**, and create a **service account** with a JSON key.
 2. Share the booking sheet with the service account's email (`client_email` in the JSON) as an **Editor**.

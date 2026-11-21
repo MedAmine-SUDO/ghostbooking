@@ -1,9 +1,10 @@
 [project]
 name = "ghostbooking"
-version = "0.1.0"
+version = "0.1.1"
 description = "Clears ghost bookings from a shared Excel room-booking file every morning and reminds people on Slack, Teams, Discord or email."
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "MedAmine-SUDO" }]
 requires-python = ">=3.12"
 keywords = ["meeting rooms", "room booking", "excel", "google sheets", "slack", "teams", "automation"]
@@ -11,10 +12,10 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: System Administrators",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
     "Topic :: Office/Business :: Scheduling",
 ]
 dependencies = [
@@ -28,7 +29,9 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/MedAmine-SUDO/ghostbooking"
+Source = "https://github.com/MedAmine-SUDO/ghostbooking"
 Issues = "https://github.com/MedAmine-SUDO/ghostbooking/issues"
+Changelog = "https://github.com/MedAmine-SUDO/ghostbooking/blob/main/CHANGELOG.md"
 
 [project.scripts]
 ghostbooking = "ghostbooking.cli:main"

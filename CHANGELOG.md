@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 (unreleased)
+
+- Published on PyPI: `pipx install ghostbooking` (`[google]` extra for Google Sheets).
+- README works on PyPI too (absolute image link, install section).
+- Package metadata: SPDX licence with the licence file included, project links.
+
 ## 0.1.0 (2026-11-20)
 
 First release.
