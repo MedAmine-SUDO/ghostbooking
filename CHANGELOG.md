@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.1 (unreleased)
+## 0.1.1 (2026-11-22)
 
 - Published on PyPI: `pipx install ghostbooking` (`[google]` extra for Google Sheets).
 - README works on PyPI too (absolute image link, install section).
